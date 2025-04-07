@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Binary ↔ Text Converter - Hacker Edition</title>
+  <meta name="theme-color" content="#00ff90" />
+  <link rel="shortcut icon" href="icon.png" type="image/x-icon">
+  <style>
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background: #0d0d0d;
+      color: #00ff90;
+      padding: 2rem;
+      text-align: center;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2rem;
+      animation: glitch 1s infinite alternate;
+    }
+
+    @keyframes glitch {
+      0% { text-shadow: 0 0 5px #00ff90, 2px 2px #ff00ff; }
+      100% { text-shadow: 0 0 10px #00ff90, -2px -2px #00ffff; }
+    }
+
+    textarea, input, button, select {
+      resize: none;
+      font-size: 1rem;
+      padding: 0.6rem;
+      width: 80%;
+      margin: 1rem auto;
+      display: block;
+      border: none;
+      border-radius: 10px;
+      background: #1a1a1a;
+      color: #00ff90;
+      transition: all 0.3s ease;
+    }
+
+    button {
+      cursor: pointer;
+      background-color: #0077ff;
+      color: white;
+    }
+
+    button:hover {
+      background-color: #004080;
+    }
+
+    #copyBtn { background: #00cc66; }
+    #resetBtn { background: #cc0000; }
+    #copyBtn:hover { background: #00994d; }
+    #resetBtn:hover { background: #990000; }
+
+    #outputArea {
+      font-family: 'Courier New', Courier, monospace;
+      animation: typewriter 1s steps(60, end);
+      overflow-x: auto;
+    }
+
+    @keyframes typewriter {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    #shiftContainer {
+      display: none;
+      color: #ffcc00;
+    }
+
+    #easterEgg {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 0.8rem;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+
+    #loadingScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #000;
+      color: #00ff90;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+      font-size: 1.5rem;
+      z-index: 9999;
+      transition: opacity 0.5s ease;
+    }
+
+    .loaderText {
+      animation: flicker 1.5s infinite alternate;
+    }
+
+    .dots::after {
+      content: '';
+      animation: dots 1.2s steps(3, end) infinite;
+    }
+
+    @keyframes dots {
+      0% { content: ''; }
+      33% { content: '.'; }
+      66% { content: '..'; }
+      100% { content: '...'; }
+    }
+
+    @keyframes flicker {
+      0% { opacity: 1; }
+      100% { opacity: 0.7; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loadingScreen">
+    <div class="loaderText">Initializing Binary Matrix<span class="dots">...</span></div>
+  </div>
+
+  <h1>Binary ↔ Text Converter - Hacker Edition</h1>
+
+  <select id="modeSelect" onchange="checkShiftVisibility()">
+    <option value="binary">Text ➔ Binary</option>
+    <option value="text">Binary ➔ Text</option>
+    <option value="base64encode">Text ➔ Base64</option>
+    <option value="base64decode">Base64 ➔ Text</option>
+    <option value="rot13">Text ↔ ROT13</option>
+    <option value="morseencode">Text ➔ Morse</option>
+    <option value="morsedecode">Morse ➔ Text</option>
+    <option value="hexencode">Text ➔ Hex</option>
+    <option value="hexdecode">Hex ➔ Text</option>
+    <option value="caesarencode">Text ➔ Caesar</option>
+    <option value="caesardecode">Caesar ➔ Text</option>
+    <option value="rithencode">Text ➔ RITH</option>
+    <option value="rithdecode">RITH ➔ Text</option>
+  </select>
+
+  <div id="shiftContainer">
+    <label for="caesarShift">🔁 Caesar Shift:</label>
+    <input type="number" id="caesarShift" value="3" min="1" max="25" />
+  </div>
+
+  <textarea id="inputArea" rows="4" placeholder="Enter your message or code here..."></textarea>
+  <button onclick="convert()">⚡ Convert</button>
+  <textarea id="outputArea" rows="6" readonly placeholder="Output will appear here..."></textarea>
+  <button id="copyBtn" onclick="copyOutput()">📋 Copy Output</button>
+  <button id="resetBtn" onclick="resetFields()">🔄 Reset</button>
+
+  <div id="easterEgg">✨ made by rithwin ✨</div>
+
+  <script>
+    const morseMap = {
+      'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
+      'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..',
+      'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.',
+      'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
+      'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--',
+      '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..',
+      '9': '----.', '0': '-----', ' ': '/'
+    };
+    const reverseMorseMap = Object.fromEntries(Object.entries(morseMap).map(([k, v]) => [v, k]));
+
+    function caesarShift(str, shift, decode = false) {
+      return str.replace(/[a-z]/gi, c => {
+        const base = c === c.toUpperCase() ? 65 : 97;
+        const offset = decode ? 26 - shift : shift;
+        return String.fromCharCode((c.charCodeAt(0) - base + offset) % 26 + base);
+      });
+    }
+
+    function rithEncrypt(text) {
+      return text.split('').map(char => char + 'ED').join('');
+    }
+
+    function rithDecrypt(text) {
+      return text.replace(/ED/g, '');
+    }
+
+    function convert() {
+      const mode = document.getElementById("modeSelect").value;
+      const input = document.getElementById("inputArea").value.trim();
+      const shift = parseInt(document.getElementById("caesarShift").value);
+      let result = "";
+
+      switch (mode) {
+        case "binary": result = input.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' '); break;
+        case "text": result = input.split(' ').map(b => String.fromCharCode(parseInt(b, 2))).join(''); break;
+        case "base64encode": result = btoa(input); break;
+        case "base64decode": result = atob(input); break;
+        case "rot13": result = input.replace(/[a-zA-Z]/g, c => String.fromCharCode(c.charCodeAt(0) + (c.toLowerCase() <= 'm' ? 13 : -13))); break;
+        case "morseencode": result = input.toUpperCase().split('').map(c => morseMap[c] || '').join(' '); break;
+        case "morsedecode": result = input.trim().split(' ').map(m => reverseMorseMap[m] || '').join(''); break;
+        case "hexencode": result = [...input].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' '); break;
+        case "hexdecode": result = input.split(' ').map(h => String.fromCharCode(parseInt(h, 16))).join(''); break;
+        case "caesarencode": result = caesarShift(input, shift, false); break;
+        case "caesardecode": result = caesarShift(input, shift, true); break;
+        case "rithencode": result = rithEncrypt(input); break;
+        case "rithdecode": result = rithDecrypt(input); break;
+      }
+
+      animatedOutput(result);
+    }
+
+    function copyOutput() {;
+      const output = document.getElementById("outputArea");
+      const copyBtn = document.getElementById("copyBtn");
+      output.select();
+      output.setSelectionRange(0, 99999);
+      document.execCommand("copy");
+      copyBtn.innerText = "✅ Copied!";
+      setTimeout(() => copyBtn.innerText = "📋 Copy Output", 2000);
+    }
+
+    function resetFields() {
+      document.getElementById("inputArea").value = "";
+      document.getElementById("outputArea").value = "";
+    }
+
+    function animatedOutput(text) {
+      const outputArea = document.getElementById("outputArea");
+      outputArea.value = '';
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i < text.length) {
+          outputArea.value += text.charAt(i);
+          i++;
+        } else {
+          clearInterval(interval);
+        }
+      }, 10);
+    }
+
+    function checkShiftVisibility() {
+      const mode = document.getElementById("modeSelect").value;
+      document.getElementById("shiftContainer").style.display = mode.includes("caesar") ? "block" : "none";
+    }
+
+    document.addEventListener("keydown", e => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'h') {
+        const egg = document.getElementById("easterEgg");
+        egg.style.opacity = 1;
+        setTimeout(() => egg.style.opacity = 0, 5000);
+      }
+    });
+
+    window.addEventListener("load", () => {
+      const loader = document.getElementById("loadingScreen");
+      setTimeout(() => {
+        loader.style.opacity = 0;
+        setTimeout(() => loader.style.display = 'none', 500);
+      }, 1800);
+    });
+  </script>
+
+</body>
+</html>
