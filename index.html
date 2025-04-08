@@ -16,7 +16,7 @@
       overflow-x: hidden;
     }
 
-    h1 {
+    .h1 {
       font-size: 2rem;
       animation: glitch 1s infinite alternate;
     }
@@ -126,7 +126,8 @@
     <div class="loaderText">Initializing Binary Matrix<span class="dots">...</span></div>
   </div>
 
-  <h1>Binary ↔ Text Converter - Hacker Edition</h1>
+  <h1 class="h1">Binary ↔ Text Converter - Hacker Edition</h1>
+  <h3>Smart Decode doesn't work with Rith and Caesar !</h3>
 
   <select id="modeSelect" onchange="checkShiftVisibility()">
     <option value="binary">Text ➔ Binary</option>
@@ -151,6 +152,7 @@
 
   <textarea id="inputArea" rows="4" placeholder="Enter your message or code here..."></textarea>
   <button onclick="convert()">⚡ Convert</button>
+  <button onclick="smartDecode()">🧠 Smart Decode</button>
   <textarea id="outputArea" rows="6" readonly placeholder="Output will appear here..."></textarea>
   <button id="copyBtn" onclick="copyOutput()">📋 Copy Output</button>
   <button id="resetBtn" onclick="resetFields()">🔄 Reset</button>
@@ -185,6 +187,47 @@
       return text.replace(/ED/g, '');
     }
 
+    function isValidText(text) {
+      return /^[\x20-\x7E\n\r]+$/.test(text);
+    }
+
+    function smartDecode() {
+      const input = document.getElementById("inputArea").value.trim();
+      let result = "";
+      let detected = "";
+
+      if (/^[01\s]+$/.test(input) && input.split(' ').every(bit => bit.length === 8)) {
+        result = input.split(' ').map(b => String.fromCharCode(parseInt(b, 2))).join('');
+        detected = "Binary";
+      } else if (/^([0-9a-fA-F]{2}\s*)+$/.test(input)) {
+        result = input.split(' ').map(h => String.fromCharCode(parseInt(h, 16))).join('');
+        detected = "Hex";
+      } else if (/^[.\-\/\s]+$/.test(input)) {
+        result = input.trim().split(' ').map(m => reverseMorseMap[m] || '').join('');
+        detected = "Morse";
+      } else if (/^[A-Za-z0-9+/=]+$/.test(input) && input.length % 4 === 0) {
+        try {
+          result = atob(input);
+          detected = "Base64";
+        } catch (e) {
+          result = "Invalid Base64 input.";
+        }
+      } else {
+        const rot = input.replace(/[a-zA-Z]/g, c =>
+          String.fromCharCode(c.charCodeAt(0) + (c.toLowerCase() <= 'm' ? 13 : -13)));
+        if (isValidText(rot)) {
+          result = rot;
+          detected = "ROT13";
+        } else {
+          result = rithDecrypt(input);
+          detected = "RITH (fallback)";
+        }
+      }
+
+      result = `[Detected: ${detected}]\n` + result;
+      animatedOutput(result);
+    }
+
     function convert() {
       const mode = document.getElementById("modeSelect").value;
       const input = document.getElementById("inputArea").value.trim();
@@ -210,7 +253,7 @@
       animatedOutput(result);
     }
 
-    function copyOutput() {;
+    function copyOutput() {
       const output = document.getElementById("outputArea");
       const copyBtn = document.getElementById("copyBtn");
       output.select();
